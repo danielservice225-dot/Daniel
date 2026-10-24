@@ -3,6 +3,13 @@ package com.daniel.aura
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.net.Uri
+import android.graphics.drawable.GradientDrawable
+import android.provider.Settings
+import android.view.Gravity
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.os.Build
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognitionListener
@@ -26,6 +33,9 @@ class MainActivity : Activity() {
     private var pendingWebPermission: PermissionRequest? = null
     private var pendingNativeLanguage = "fr-FR"
     private var nativeSpeechRecognizer: SpeechRecognizer? = null
+    private var shortcutButton: TextView? = null
+    private val shortcutPrefs by lazy { getSharedPreferences("daniel_aura_app", MODE_PRIVATE) }
+    private var waitingForOverlayPermission = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,6 +57,12 @@ class MainActivity : Activity() {
             addJavascriptInterface(NativeSpeechBridge(), "DanielNativeSpeech")
 
             webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    super.onPageFinished(view, url)
+                    if (url?.startsWith(website) == true) {
+                        view?.evaluateJavascript("document.documentElement.style.setProperty('--bg','#080d19');document.documentElement.style.setProperty('--bg-deep','#050914');document.documentElement.style.setProperty('--violet','#7c6cf0');document.documentElement.style.setProperty('--cyan','#38bdf8');document.documentElement.style.setProperty('--mint','#22e58b');document.body.style.background='radial-gradient(circle at 50% -10%,rgba(37,99,235,.18),transparent 42%),#080d19';document.documentElement.classList.add('daniel-android-app');", null)
+                    }
+                }
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     if (uri.scheme == "https" && (uri.host == "danielservice225-dot.github.io" || uri.host == "daniel-aura-api.onrender.com")) return false
@@ -100,9 +116,112 @@ class MainActivity : Activity() {
                 }
             }
         }
-        setContentView(webView)
-
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(android.graphics.Color.rgb(8, 13, 25))
+        }
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(18), dp(10), dp(14), dp(10))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                intArrayOf(android.graphics.Color.rgb(13, 23, 43), android.graphics.Color.rgb(20, 23, 48))
+            ).apply { cornerRadius = dp(18).toFloat() }
+            elevation = dp(5).toFloat()
+        }
+        val brand = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val title = TextView(this).apply {
+            text = "Daniel Aura"
+            textSize = 18f
+            setTextColor(android.graphics.Color.WHITE)
+            setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD))
+        }
+        val subtitle = TextView(this).apply {
+            text = "ASSISTANT INTELLIGENT  ·  2.0"
+            textSize = 9f
+            letterSpacing = .12f
+            setTextColor(android.graphics.Color.rgb(148, 163, 184))
+        }
+        brand.addView(title)
+        brand.addView(subtitle)
+        header.addView(brand, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        shortcutButton = TextView(this).apply {
+            text = if (shortcutPrefs.getBoolean("shortcut_enabled", false)) "Raccourci actif" else "＋ Raccourci"
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setPadding(dp(14), dp(11), dp(14), dp(11))
+            setTextColor(android.graphics.Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(16).toFloat()
+                setColor(android.graphics.Color.rgb(37, 99, 235))
+            }
+            contentDescription = "Activer ou désactiver le raccourci flottant"
+            setOnClickListener { toggleShortcut() }
+        }
+        header.addView(shortcutButton, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT))
+        val headerParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        headerParams.setMargins(dp(10), dp(8), dp(10), dp(6))
+        root.addView(header, headerParams)
+        root.addView(webView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+        setContentView(root)
         webView.loadUrl(website)
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun toggleShortcut() {
+        val enabled = shortcutPrefs.getBoolean("shortcut_enabled", false)
+        if (enabled) {
+            stopService(Intent(this, OverlayService::class.java))
+            shortcutPrefs.edit().putBoolean("shortcut_enabled", false).apply()
+            shortcutButton?.text = "＋ Raccourci"
+            Toast.makeText(this, "Raccourci flottant désactivé", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!Settings.canDrawOverlays(this)) {
+            waitingForOverlayPermission = true
+            try {
+                startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                Toast.makeText(this, "Autorisez l’affichage par-dessus les autres applications dans les réglages.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        enableShortcut()
+    }
+
+    private fun enableShortcut() {
+        if (!Settings.canDrawOverlays(this)) return
+        shortcutPrefs.edit().putBoolean("shortcut_enabled", true).apply()
+        val intent = Intent(this, OverlayService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+            shortcutButton?.text = "Raccourci actif"
+            Toast.makeText(this, "Raccourci flottant activé", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {
+            shortcutPrefs.edit().putBoolean("shortcut_enabled", false).apply()
+            shortcutButton?.text = "＋ Raccourci"
+            Toast.makeText(this, "Impossible d’activer le raccourci. Vérifiez les autorisations.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (waitingForOverlayPermission) {
+            waitingForOverlayPermission = false
+            if (Settings.canDrawOverlays(this)) enableShortcut()
+            else Toast.makeText(this, "L’autorisation du raccourci n’a pas été accordée.", Toast.LENGTH_SHORT).show()
+        } else if (shortcutPrefs.getBoolean("shortcut_enabled", false) && Settings.canDrawOverlays(this)) {
+            val intent = Intent(this, OverlayService::class.java)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+                shortcutButton?.text = "Raccourci actif"
+            } catch (_: Exception) {}
+        }
     }
 
     private inner class NativeSpeechBridge {
