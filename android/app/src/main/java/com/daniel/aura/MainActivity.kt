@@ -67,17 +67,17 @@ class MainActivity : Activity() {
                           window.__danielNativeOpenPatched = true;
                           var nativeOpen = window.open.bind(window);
                           var apps = [
-                            [/youtube\\.com/i, "com.google.android.youtube"],
-                            [/open\\.spotify\\.com|spotify\\.com/i, "com.spotify.music"],
-                            [/google\\.com\\/maps/i, "com.google.android.apps.maps"],
-                            [/mail\\.google\\.com/i, "com.google.android.gm"],
-                            [/web\\.whatsapp\\.com|whatsapp\\.com/i, "com.whatsapp"],
-                            [/drive\\.google\\.com/i, "com.google.android.apps.docs"],
-                            [/calendar\\.google\\.com/i, "com.google.android.calendar"],
-                            [/netflix\\.com/i, "com.netflix.mediaclient"],
-                            [/github\\.com/i, "com.github.android"],
-                            [/notion\\.so/i, "notion.id"],
-                            [/deezer\\.com/i, "deezer.android.app"]
+                            [/youtube\.com/i, "com.google.android.youtube"],
+                            [/open\.spotify\.com|spotify\.com/i, "com.spotify.music"],
+                            [/google\.com\/maps/i, "com.google.android.apps.maps"],
+                            [/mail\.google\.com/i, "com.google.android.gm"],
+                            [/web\.whatsapp\.com|whatsapp\.com/i, "com.whatsapp"],
+                            [/drive\.google\.com/i, "com.google.android.apps.docs"],
+                            [/calendar\.google\.com/i, "com.google.android.calendar"],
+                            [/netflix\.com/i, "com.netflix.mediaclient"],
+                            [/github\.com/i, "com.github.android"],
+                            [/notion\.so/i, "notion.id"],
+                            [/deezer\.com/i, "deezer.android.app"]
                           ];
                           window.open = function(url, target, features) {
                             var value = String(url || "");
