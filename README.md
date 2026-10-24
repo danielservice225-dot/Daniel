@@ -18,7 +18,7 @@ Assistant vocal responsive avec interface web et backend Python FastAPI. Le back
 4. Attendez la fin du déploiement puis testez `https://VOTRE-SERVICE.onrender.com/api/health`. Remplacez l'exemple par l'URL réellement attribuée par Render.
 5. Ouvrez Daniel, allez dans **Réglages**, indiquez l'URL de base du service Render dans le champ de l'API (par exemple `https://VOTRE-SERVICE.onrender.com`), puis enregistrez.
 
-Le nom exact du service et son URL dépendent du déploiement Render. Le fichier `render.yaml` configure le service nommé `daniel-aura-api` et demande la clé `GROQ_API_KEY) comme variable secrète.
+Le nom exact du service et son URL dépendent du déploiement Render. Le fichier `render.yaml` configure le service nommé `daniel-aura-api` et déclare `GROQ_API_KEY` comme variable secrète à renseigner dans Render.
 
 ## Modèle IA et solutions de repli
 
@@ -30,12 +30,9 @@ Vous pouvez changer ces variables dans Render sans modifier le code. Les modèle
 
 Python 3.11 ou supérieur est recommandé.
 
-```bash
-python -m venv .venv
-```
-
 Windows PowerShell :
 ```powershell
+py -3.11 -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
@@ -44,6 +41,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 macOS / Linux :
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
