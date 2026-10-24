@@ -55,6 +55,7 @@ class MainActivity : Activity() {
             settings.allowFileAccess = false
             settings.allowContentAccess = true
             addJavascriptInterface(NativeSpeechBridge(), "DanielNativeSpeech")
+            addJavascriptInterface(AndroidAssistantBridge(this@MainActivity), "DanielAndroid")
 
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -149,6 +150,16 @@ class MainActivity : Activity() {
         brand.addView(title)
         brand.addView(subtitle)
         header.addView(brand, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        header.addView(createHeaderButton("Google") {
+            AndroidAssistantBridge(this).openGoogleAssistant()
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            marginEnd = dp(6)
+        })
+        header.addView(createHeaderButton("Accès") {
+            AndroidAssistantBridge(this).openAccessibilitySettings()
+        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            marginEnd = dp(6)
+        })
         shortcutButton = TextView(this).apply {
             text = if (shortcutPrefs.getBoolean("shortcut_enabled", false)) "Raccourci actif" else "＋ Raccourci"
             textSize = 12f
@@ -172,6 +183,21 @@ class MainActivity : Activity() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun createHeaderButton(label: String, click: () -> Unit): TextView {
+        return TextView(this).apply {
+            text = label
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setPadding(dp(10), dp(11), dp(10), dp(11))
+            setTextColor(android.graphics.Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(14).toFloat()
+                setColor(android.graphics.Color.rgb(45, 55, 75))
+            }
+            setOnClickListener { click() }
+        }
+    }
 
     private fun toggleShortcut() {
         val enabled = shortcutPrefs.getBoolean("shortcut_enabled", false)
