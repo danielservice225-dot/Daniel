@@ -3187,8 +3187,8 @@
         <div class="settings-section-title"><i data-lucide="server-cog"></i> Backend FastAPI</div>
         <div class="field">
           <label for="settingApiUrl">URL de base de l’API</label>
-          <input id="settingApiUrl" type="url" inputmode="url" placeholder="http://localhost:8000">
-          <small>Laissez vide pour le moteur local. N’ajoutez jamais de clé API dans ce champ. Les commandes vocales restent exécutées localement.</small>
+          <input id="settingApiUrl" type="url" inputmode="url" placeholder="https://daniel-aura-api.onrender.com">
+          <small>Backend public par défaut : daniel-aura-api.onrender.com. Ne collez jamais votre clé API ici. Les commandes vocales restent exécutées localement.</small>
         </div>
         <div class="inline-actions">
           <button class="secondary-button" id="testApiButton" type="button"><i data-lucide="activity"></i>Tester la connexion</button>
@@ -3428,7 +3428,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload</pre>
       voiceURI: "",
       audio: true,
       muted: false,
-      apiUrl: "",
+      apiUrl: "https://daniel-aura-api.onrender.com",
       storage: false
     };
 
@@ -3804,7 +3804,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
           voiceURI: typeof parsed.voiceURI === "string" ? parsed.voiceURI : "",
           audio: parsed.audio !== false,
           muted: parsed.muted === true,
-          apiUrl: typeof parsed.apiUrl === "string" ? parsed.apiUrl.slice(0, 300) : "",
+          apiUrl: typeof parsed.apiUrl === "string" && parsed.apiUrl.trim() ? parsed.apiUrl.trim().slice(0, 300) : "https://daniel-aura-api.onrender.com",
           storage: true
         };
 
