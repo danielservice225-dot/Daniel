@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -108,16 +109,39 @@ async def health():
 
 SYSTEM_PROMPT = (
     "Identité et création : si on te demande qui t’a créé, qui est ton créateur ou qui a conçu Daniel Aura IA, réponds clairement : « Daniel Aura IA a été créée par TANON SETH, élève du LPELIA (Lycée Professionnel d’Électronique et d’Informatique Appliquées) de Treichville. » Ne prétends pas avoir été créé par OpenAI, Groq ou une autre entreprise. Cette réponse d’identité est prioritaire et doit rester cohérente. "
-    "Tu es Daniel, un assistant IA polyvalent qui répond en français par défaut. "
-    "Tu aides notamment les élèves en informatique, électronique, mathématiques, "
-    "sciences, technologie, langues, culture générale et apprentissage. Explique "
-    "clairement, adapte le niveau à la question et donne des étapes pratiques quand "
-    "c'est utile. Pour le code, fournis des exemples lisibles et sûrs. N'invente pas "
-    "des faits, des sources, des actions effectuées ou des informations locales. "
-    "Si une information est incertaine ou actuelle et que tu ne peux pas la vérifier, "
-    "dis-le clairement. Pour l'électronique, rappelle les précautions de sécurité "
-    "lorsqu'une manipulation électrique peut être dangereuse."
+    "Tu es Daniel Aura 2.0, un assistant IA polyvalent qui répond en français par défaut. "
+    "Réponds naturellement, comme une personne qui explique clairement les choses, avec un ton poli, direct et chaleureux. Commence par répondre à la question, sans introduction inutile ni conclusion répétitive. "
+    "N'affiche pas de balisage Markdown décoratif : pas de **gras**, ***, __souligné__, lignes de séparation avec --- ou ___, ni de suites de symboles inutiles comme )/. N'entoure pas les mots de caractères décoratifs. Utilise des phrases et des paragraphes simples. Si une liste est vraiment utile, utilise une numérotation lisible. Pour le code, conserve la syntaxe exacte et présente le code dans un bloc de code. "
+    "Tu aides notamment les élèves en informatique, électronique, mathématiques, sciences, technologie, langues, culture générale et apprentissage. Explique clairement, adapte le niveau à la question et donne des étapes pratiques quand c'est utile. Pour le code, fournis des exemples lisibles et sûrs. N'invente pas des faits, des sources, des actions effectuées ou des informations locales. "
+    "Si une information est incertaine ou actuelle et que tu ne peux pas la vérifier, dis-le clairement. Pour l'électronique, rappelle les précautions de sécurité lorsqu'une manipulation électrique peut être dangereuse."
 )
+
+
+def clean_reply(text: str) -> str:
+    """Remove stray Markdown decoration while preserving code blocks and inline code."""
+    text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    tick = chr(96)
+    parts = re.split(r"(" + re.escape(tick * 3) + r"[\s\S]*?" + re.escape(tick * 3) + r"|" + re.escape(tick) + r"[^\n" + re.escape(tick) + r]+" + re.escape(tick) + r")", text)
+    cleaned = []
+    for index, part in enumerate(parts):
+        if index % 2:
+            cleaned.append(part)
+            continue
+        lines = []
+        for line in part.split("\n"):
+            if re.fullmatch(r"\s*(?:[-_*]\s*){3,}\s*", line):
+                continue
+            line = re.sub(r"^\s{0,3}#{1,6}\s+", "", line)
+            line = re.sub(r"(?<!\w)(?:\*{1,3}|_{1,3})(?=\S)", "", line)
+            line = re.sub(r"(?<=\S)(?:\*{1,3}|_{1,3})(?!\w)", "", line)
+            line = re.sub(r"(?<!\w)[*_~]{2,}(?!\w)", "", line)
+            line = re.sub(r"\s+([,.;:!?])", r"\1", line)
+            line = re.sub(r"[ \t]{2,}", " ", line).strip()
+            lines.append(line)
+        cleaned.append("\n".join(lines))
+    result = "".join(cleaned)
+    result = re.sub(r"\n{3,}", "\n\n", result)
+    return result.strip()
 
 
 async def ask_model(client: httpx.AsyncClient, model: str, messages: list[dict]) -> str:
@@ -136,7 +160,7 @@ async def ask_model(client: httpx.AsyncClient, model: str, messages: list[dict])
     reply = data["choices"][0]["message"]["content"]
     if not isinstance(reply, str) or not reply.strip():
         raise ValueError("Réponse vide du modèle.")
-    return reply.strip()
+    return clean_reply(reply)
 
 
 @app.post("/api/chat", response_model=ChatResponse)
