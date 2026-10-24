@@ -85,7 +85,7 @@ class MainActivity : Activity() {
                             try {
                               var userMessages = document.querySelectorAll("#messages .message.user");
                               var latestCommand = userMessages.length ? userMessages[userMessages.length - 1].innerText : "";
-                              if (/google\\.com/i.test(value) && /assistant google|google assistant|assistant de google|parle a google/i.test(latestCommand) && window.DanielAndroid) {
+                              if (/google\.com/i.test(value) && /assistant google|google assistant|assistant de google|parle a google/i.test(latestCommand) && window.DanielAndroid) {
                                 window.DanielAndroid.openGoogleAssistant();
                                 return null;
                               }
