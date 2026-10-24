@@ -88,14 +88,6 @@ class AndroidAssistantBridge(private val activity: Activity) {
         }
     }
 
-    private fun onUi(action: () -> Unit) {
-        activity.runOnUiThread {
-            try { action() } catch (_: Exception) {
-                Toast.makeText(activity, "Cette action n’est pas disponible sur cet appareil.", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
     private fun onUi(action: () -> Unit): Boolean {
         activity.runOnUiThread {
             try { action() } catch (_: Exception) {
