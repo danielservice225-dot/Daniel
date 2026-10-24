@@ -10,7 +10,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Daniel — Aura IA"
+        android:label="Daniel Aura 2.0"
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:usesCleartextTraffic="false">
         <activity
