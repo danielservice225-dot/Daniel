@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Daniel — Aura IA</string>
-    <string name="accessibility_description">Permet à Daniel d'exécuter uniquement des commandes système simples demandées par l'utilisateur, comme Retour, Accueil et Notifications. Ce service ne lit pas le contenu des écrans.</string>
+    <string name="app_name">Daniel - Aura IA</string>
+    <string name="accessibility_description">Service facultatif de Daniel. Permet les commandes systeme simples demandees par l utilisateur : Retour, Accueil et Notifications. Le service ne lit pas le contenu des ecrans.</string>
 </resources>
