@@ -62,6 +62,35 @@ class MainActivity : Activity() {
                     super.onPageFinished(view, url)
                     if (url?.startsWith(website) == true) {
                         view?.evaluateJavascript("document.documentElement.style.setProperty('--bg','#080d19');document.documentElement.style.setProperty('--bg-deep','#050914');document.documentElement.style.setProperty('--violet','#7c6cf0');document.documentElement.style.setProperty('--cyan','#38bdf8');document.documentElement.style.setProperty('--mint','#22e58b');document.body.style.background='radial-gradient(circle at 50% -10%,rgba(37,99,235,.18),transparent 42%),#080d19';document.documentElement.classList.add('daniel-android-app');", null)
+                        view?.evaluateJavascript("""(function() {
+                          if (window.__danielNativeOpenPatched) return;
+                          window.__danielNativeOpenPatched = true;
+                          var nativeOpen = window.open.bind(window);
+                          var apps = [
+                            [/youtube\\.com/i, "com.google.android.youtube"],
+                            [/open\\.spotify\\.com|spotify\\.com/i, "com.spotify.music"],
+                            [/google\\.com\\/maps/i, "com.google.android.apps.maps"],
+                            [/mail\\.google\\.com/i, "com.google.android.gm"],
+                            [/web\\.whatsapp\\.com|whatsapp\\.com/i, "com.whatsapp"],
+                            [/drive\\.google\\.com/i, "com.google.android.apps.docs"],
+                            [/calendar\\.google\\.com/i, "com.google.android.calendar"],
+                            [/netflix\\.com/i, "com.netflix.mediaclient"],
+                            [/github\\.com/i, "com.github.android"],
+                            [/notion\\.so/i, "notion.id"],
+                            [/deezer\\.com/i, "deezer.android.app"]
+                          ];
+                          window.open = function(url, target, features) {
+                            var value = String(url || "");
+                            var match = apps.find(function(item) { return item[0].test(value); });
+                            try {
+                              if (match && window.DanielAndroid && window.DanielAndroid.isAppInstalled(match[1])) {
+                                window.DanielAndroid.openApp(match[1]);
+                                return null;
+                              }
+                            } catch (e) {}
+                            return nativeOpen(url, target, features);
+                          };
+                        })();""", null)
                     }
                 }
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
