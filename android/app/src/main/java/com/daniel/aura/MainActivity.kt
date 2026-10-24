@@ -8,223 +8,83 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.speech.RecognizerIntent
-import android.speech.tts.TextToSpeech
-import android.view.Gravity
-import android.view.ViewGroup
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
-import org.json.JSONArray
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.Locale
-import java.util.concurrent.Executors
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.Toast
 
-class MainActivity : Activity(), TextToSpeech.OnInitListener {
-    private val apiBase = "https://daniel-aura-api.onrender.com"
-    private val executor = Executors.newSingleThreadExecutor()
-    private lateinit var transcript: TextView
-    private lateinit var prompt: EditText
-    private lateinit var status: TextView
-    private lateinit var chatScroll: ScrollView
-    private var tts: TextToSpeech? = null
-    private var ttsReady = false
-    private val history = JSONArray()
-    private val speechRequest = 812
+class MainActivity : Activity() {
+    private lateinit var webView: WebView
+    private val website = "https://danielservice225-dot.github.io/Daniel/"
+    private val microphoneRequest = 420
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        tts = TextToSpeech(this, this)
-        buildUi()
+        window.statusBarColor = android.graphics.Color.rgb(7, 8, 13)
+        window.navigationBarColor = android.graphics.Color.rgb(7, 8, 13)
+        if (Build.VERSION.SDK_INT >= 23) {
+            window.decorView.systemUiVisibility = 0
+        }
+
+        webView = WebView(this).apply {
+            setBackgroundColor(android.graphics.Color.rgb(7, 8, 13))
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.databaseEnabled = true
+            settings.loadsImagesAutomatically = true
+            settings.javaScriptCanOpenWindowsAutomatically = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            settings.setSupportMultipleWindows(false)
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    val uri = request?.url ?: return false
+                    if (uri.scheme == "https" && uri.host == "danielservice225-dot.github.io") return false
+                    if (uri.scheme == "http" || uri.scheme == "https") {
+                        try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (_: Exception) {}
+                        return true
+                    }
+                    return true
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onPermissionRequest(request: PermissionRequest) {
+                    runOnUiThread {
+                        val audioResource = PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                        if (request.resources.contains(audioResource) &&
+                            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            request.grant(arrayOf(audioResource))
+                        } else {
+                            if (Build.VERSION.SDK_INT >= 23 &&
+                                checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), microphoneRequest)
+                            }
+                            request.deny()
+                            Toast.makeText(this@MainActivity, "Autorisez le microphone puis réessayez.", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
+        setContentView(webView)
+
         if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 20)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 21)
         }
+        webView.loadUrl(website)
     }
 
-    private fun buildUi() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 28, 20, 16)
-            setBackgroundColor(0xFFF8FAFC.toInt())
-        }
-        val title = TextView(this).apply { text = "Daniel — Aura IA"; textSize = 25f; setTextColor(0xFF1D4ED8.toInt()) }
-        status = TextView(this).apply { text = "Assistant prêt"; textSize = 13f }
-        transcript = TextView(this).apply {
-            text = "Bonjour, je suis Daniel. Pose ta question par écrit ou par la voix."
-            textSize = 16f
-            setTextColor(0xFF0F172A.toInt())
-            setPadding(4, 16, 4, 16)
-        }
-        chatScroll = ScrollView(this).apply { isFillViewport = true; addView(transcript) }
-        root.addView(title)
-        root.addView(status)
-        root.addView(chatScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        prompt = EditText(this).apply { hint = "Pose ta question à Daniel…"; minLines = 1; maxLines = 4 }
-        root.addView(prompt)
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
-        row.addView(makeButton("Envoyer") { sendMessage() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        row.addView(makeButton("Parler") { startVoiceInput() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        root.addView(row)
-        root.addView(makeButton("Configurer la voix de Daniel") { configureVoice() })
-        root.addView(makeButton("Activer le bouton flottant") { enableOverlay() })
-        root.addView(makeButton("Autoriser les actions système (facultatif)") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        })
-        root.addView(makeButton("Ouvrir le site Daniel") {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://danielservice225-dot.github.io/Daniel/")))
-        })
-        setContentView(root)
-    }
-
-    private fun makeButton(label: String, action: () -> Unit) = Button(this).apply { text = label; setOnClickListener { action() } }
-
-    private fun configureVoice() {
-        try {
-            startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
-        } catch (_: Exception) {
-            try {
-                startActivity(Intent("com.android.settings.TTS_SETTINGS"))
-            } catch (_: Exception) {
-                status.text = "Ouvre les paramètres Android > Synthèse vocale pour installer une voix française."
-            }
-        }
-    }
-
-    private fun enableOverlay() {
-        if (!Settings.canDrawOverlays(this)) {
-            startActivityForResult(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")), 901)
-        } else {
-            startService(Intent(this, OverlayService::class.java))
-            status.text = "Bouton flottant activé. Tu peux quitter Daniel."
-        }
-    }
-
-    @Deprecated("Legacy Android callback retained for broad device support")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 901 && Settings.canDrawOverlays(this)) {
-            startService(Intent(this, OverlayService::class.java))
-            status.text = "Bouton flottant activé. Tu peux quitter Daniel."
-        }
-        if (requestCode == speechRequest && resultCode == RESULT_OK) {
-            val spoken = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!spoken.isNullOrBlank()) { prompt.setText(spoken); sendMessage() }
-        }
-    }
-
-    private fun startVoiceInput() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
-            putExtra(RecognizerIntent.EXTRA_PROMPT, "Parle à Daniel")
-        }
-        try { startActivityForResult(intent, speechRequest) }
-        catch (_: Exception) { status.text = "La reconnaissance vocale Android n'est pas disponible sur cet appareil." }
-    }
-
-    private fun handlePhoneCommand(message: String): Boolean {
-        val q = message.lowercase(Locale.FRENCH)
-        val systemCommand = when {
-            q.contains("retour") || q == "reviens en arrière" -> "back"
-            q.contains("accueil") || q == "écran d'accueil" -> "home"
-            q.contains("notifications") -> "notifications"
-            else -> null
-        }
-        if (systemCommand != null) {
-            sendBroadcast(Intent("com.daniel.aura.SYSTEM_COMMAND").setPackage(packageName).putExtra("command", systemCommand))
-            appendLine("Daniel : commande envoyée à Android. Active le service d'accessibilité Daniel pour l'autoriser.")
-            return true
-        }
-        val app = when {
-            q.contains("ouvre whatsapp") || q.contains("ouvre whats app") -> "com.whatsapp"
-            q.contains("ouvre youtube") -> "com.google.android.youtube"
-            q.contains("ouvre chrome") || q.contains("ouvre le navigateur") -> "com.android.chrome"
-            q.contains("ouvre gmail") -> "com.google.android.gm"
-            q.contains("ouvre les paramètres") || q.contains("ouvre paramètres") -> "android.settings"
-            else -> null
-        }
-        if (app != null) {
-            try {
-                val launch = if (app == "android.settings") Intent(Settings.ACTION_SETTINGS)
-                    else packageManager.getLaunchIntentForPackage(app)
-                if (launch != null) {
-                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    startActivity(launch)
-                    appendLine("Daniel : ouverture de l'application demandée.")
-                } else appendLine("Daniel : cette application ne semble pas installée.")
-            } catch (_: Exception) { appendLine("Daniel : je ne peux pas ouvrir cette application sur cet appareil.") }
-            return true
-        }
-        return false
-    }
-
-    private fun appendLine(text: String) {
-        transcript.append("\n\n$text")
-        status.text = "Prêt"
-    }
-
-    private fun sendMessage() {
-        val message = prompt.text.toString().trim()
-        if (message.isEmpty()) return
-        prompt.setText("")
-        appendLine("Vous : $message")
-        if (handlePhoneCommand(message)) return
-        appendLine("Daniel : …")
-        status.text = "Daniel réfléchit…"
-        executor.execute {
-            try {
-                val conn = (URL("$apiBase/api/chat").openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = 15000
-                    readTimeout = 45000
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                }
-                val recentHistory = JSONArray()
-                val start = (history.length() - 10).coerceAtLeast(0)
-                for (i in start until history.length()) recentHistory.put(history.getJSONObject(i))
-                val payload = JSONObject().put("message", message).put("history", recentHistory).toString()
-                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                val code = conn.responseCode
-                val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-                val body = stream.bufferedReader().use { it.readText() }
-                conn.disconnect()
-                if (code !in 200..299) throw IllegalStateException("Serveur indisponible ($code)")
-                val reply = JSONObject(body).optString("reply", "Je n'ai pas reçu de réponse.")
-                history.put(JSONObject().put("role", "user").put("content", message))
-                history.put(JSONObject().put("role", "assistant").put("content", reply))
-                runOnUiThread {
-                    appendLine("Daniel : $reply")
-                    if (ttsReady) tts?.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "daniel_reply")
-                    else status.text = "Réponse affichée. Pour l’entendre, configure une voix dans « Configurer la voix de Daniel »."
-                }
-            } catch (_: Exception) {
-                runOnUiThread { appendLine("Daniel : impossible de joindre le service. Vérifie ta connexion et Render.") }
-            }
-        }
-    }
-
-    override fun onInit(statusCode: Int) {
-        if (statusCode == TextToSpeech.SUCCESS) {
-            val languageStatus = tts?.setLanguage(Locale.FRENCH)
-            ttsReady = languageStatus != null &&
-                languageStatus != TextToSpeech.LANG_MISSING_DATA &&
-                languageStatus != TextToSpeech.LANG_NOT_SUPPORTED
-            if (!ttsReady) status.text = "Installe une voix française avec « Configurer la voix de Daniel »."
-        } else {
-            ttsReady = false
-            status.text = "Synthèse vocale indisponible. Vérifie le moteur vocal dans les paramètres Android."
-        }
+    override fun onBackPressed() {
+        if (::webView.isInitialized && webView.canGoBack()) webView.goBack()
+        else super.onBackPressed()
     }
 
     override fun onDestroy() {
-        tts?.stop()
-        tts?.shutdown()
-        executor.shutdownNow()
+        if (::webView.isInitialized) {
+            webView.stopLoading()
+            webView.destroy()
+        }
         super.onDestroy()
     }
 }
