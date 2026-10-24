@@ -37,6 +37,13 @@ class AndroidAssistantBridge(private val activity: Activity) {
     }
 
     @JavascriptInterface
+    fun isAppInstalled(packageName: String?): Boolean {
+        val safePackage = packageName?.trim().orEmpty()
+        if (safePackage.isBlank() || safePackage.length > 180 || safePackage.any { !(it.isLetterOrDigit() || it == '.' || it == '_') }) return false
+        return try { activity.packageManager.getLaunchIntentForPackage(safePackage) != null } catch (_: Exception) { false }
+    }
+
+    @JavascriptInterface
     fun openApp(packageName: String?): Boolean = onUi {
         val safePackage = packageName?.trim().orEmpty()
         if (safePackage.isBlank() || safePackage.length > 180 || safePackage.any { !(it.isLetterOrDigit() || it == '.' || it == '_') }) {
