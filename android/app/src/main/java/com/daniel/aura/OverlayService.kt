@@ -22,21 +22,12 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        val notification: Notification = if (Build.VERSION.SDK_INT >= 26) {
-            Notification.Builder(this, channelId)
-                .setContentTitle("Daniel — Aura IA est actif")
-                .setContentText("Touchez le bouton flottant pour parler à Daniel.")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setOngoing(true)
-                .build()
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-                .setContentTitle("Daniel — Aura IA")
-                .setContentText("Bouton flottant actif")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .build()
-        }
+        val notification = Notification.Builder(this, channelId)
+            .setContentTitle("Daniel — Aura IA est actif")
+            .setContentText("Touchez le bouton flottant pour parler à Daniel.")
+            .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+            .setOngoing(true)
+            .build()
         startForeground(41, notification)
         if (Settings.canDrawOverlays(this)) showBubble()
     }
@@ -61,8 +52,7 @@ class OverlayService : Service() {
         val params = WindowManager.LayoutParams(
             (56 * resources.displayMetrics.density).toInt(),
             (56 * resources.displayMetrics.density).toInt(),
-            if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
@@ -74,10 +64,8 @@ class OverlayService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= 26) {
-            val channel = NotificationChannel(channelId, "Raccourci flottant Daniel", NotificationManager.IMPORTANCE_LOW)
-            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
-        }
+        val channel = NotificationChannel(channelId, "Raccourci flottant Daniel", NotificationManager.IMPORTANCE_LOW)
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(channel)
     }
 
     override fun onDestroy() {
