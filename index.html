@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#07080d">
-  <meta name="description" content="Daniel, assistant vocal Aura IA : commandes vocales, ouverture d’applications, conversation et backend FastAPI téléchargeable.">
+  <meta name="description" content="Daniel, assistant vocal Aura 2.0 : commandes vocales, ouverture d’applications, conversation et backend FastAPI téléchargeable.">
   <meta name="referrer" content="no-referrer">
-  <title>Daniel — Aura IA</title>
+  <title>Daniel — Aura 2.0</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -829,6 +829,48 @@
       margin-top: 9px;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .quick-shortcuts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 9px;
+      width: min(100%, 620px);
+      margin: 20px auto 0;
+    }
+
+    .quick-shortcut {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-width: 0;
+      min-height: 44px;
+      padding: 9px 12px;
+      color: var(--text);
+      background: rgba(255,255,255,0.045);
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .quick-shortcut:hover {
+      background: rgba(140,123,255,0.12);
+      border-color: rgba(140,123,255,0.38);
+      transform: translateY(-1px);
+    }
+
+    .quick-shortcut svg {
+      width: 17px;
+      height: 17px;
+      color: var(--cyan);
+    }
+
+    @media (max-width: 560px) {
+      .quick-shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .quick-shortcut { justify-content: flex-start; padding-inline: 14px; }
     }
 
     .voice-controls {
@@ -2741,7 +2783,7 @@
         <span class="logo-orb" aria-hidden="true"></span>
         <span class="brand-copy">
           <span class="brand-name">Daniel</span>
-          <span class="brand-subtitle">Aura IA</span>
+          <span class="brand-subtitle">Aura 2.0</span>
         </span>
       </button>
 
@@ -2805,7 +2847,7 @@
           <span class="logo-orb" aria-hidden="true"></span>
           <span class="brand-copy">
             <span class="brand-name">Daniel</span>
-            <span class="brand-subtitle">Aura IA</span>
+            <span class="brand-subtitle">Aura 2.0</span>
           </span>
         </div>
 
@@ -2854,6 +2896,21 @@
                   <span class="gradient-text">Que puis-je faire pour vous ?</span>
                 </h1>
                 <p>Parlez naturellement. Daniel vous répond, lance vos services et vous aide à garder le contrôle.</p>
+              </div>
+
+              <div class="quick-shortcuts" aria-label="Raccourcis Daniel Aura 2.0">
+                <button class="quick-shortcut" type="button" data-quick-voice>
+                  <i data-lucide="mic"></i><span>Parler</span>
+                </button>
+                <button class="quick-shortcut" type="button" data-nav="conversation">
+                  <i data-lucide="message-square-text"></i><span>Conversation</span>
+                </button>
+                <button class="quick-shortcut" type="button" data-nav="apps">
+                  <i data-lucide="layout-grid"></i><span>Applications</span>
+                </button>
+                <button class="quick-shortcut" type="button" data-quick-settings>
+                  <i data-lucide="settings-2"></i><span>Réglages</span>
+                </button>
               </div>
 
               <div class="aura-zone" id="auraZone">
@@ -3209,7 +3266,7 @@
       <div class="modal-header">
         <div>
           <h2 id="docsTitle">Guide & livrables</h2>
-          <p>Projet Daniel Aura IA · Python 3.11+ · FastAPI · Web Speech API</p>
+          <p>Projet Daniel Aura 2.0 · Python 3.11+ · FastAPI · Web Speech API</p>
         </div>
         <button class="icon-button modal-close" data-close-dialog="docsDialog" aria-label="Fermer">
           <i data-lucide="x"></i>
@@ -3253,7 +3310,7 @@
 
           <h3>Structure du projet</h3>
           <pre class="file-tree">daniel-aura/
-├── index.html          Interface Aura IA complète
+├── index.html          Interface Aura 2.0 complète
 ├── main.py             API FastAPI et service du frontend
 ├── requirements.txt    Dépendances Python verrouillées
 ├── .env.example        Configuration sans secret
@@ -3492,7 +3549,7 @@ ALLOWED_ORIGINS = [
 ]
 
 app = FastAPI(
-    title="Daniel Aura IA",
+    title="Daniel Aura 2.0",
     description="Backend local de conversation pour l'assistant Daniel.",
     version="1.0.0",
     docs_url="/api/docs",
@@ -3672,7 +3729,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 `,
-      "README.md": `# Daniel — Aura IA
+      "README.md": `# Daniel — Aura 2.0
 
 Assistant vocal responsive avec interface Aura sur canvas, Web Speech API,
 commandes locales, ouverture de services web et backend FastAPI optionnel.
@@ -4306,7 +4363,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
       }
 
       if (/qui es tu|tu es qui|presente toi|ton nom/.test(normalized)) {
-        return { handled: true, response: "Je suis Daniel, votre assistant Aura IA. Je fonctionne avec des commandes locales et, si vous le configurez, avec un backend FastAPI pour les conversations génératives." };
+        return { handled: true, response: "Je suis Daniel, votre assistant Aura 2.0. Je fonctionne avec des commandes locales et, si vous le configurez, avec un backend FastAPI pour les conversations génératives." };
       }
 
       if (/^(bonjour|bonsoir|salut|hello|coucou)\b/.test(normalized)) {
@@ -5122,7 +5179,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
         const folder = zip.folder("daniel-aura");
         folder.file("index.html", SOURCE_HTML);
         Object.entries(BACKEND_FILES).forEach(([name, content]) => folder.file(name, content));
-        folder.file("TEST_CHECKLIST.md", `# Checklist de test — Daniel Aura IA\n\n${TEST_ITEMS.map(item => `- [ ] ${item}`).join("\n")}\n`);
+        folder.file("TEST_CHECKLIST.md", `# Checklist de test — Daniel Aura 2.0\n\n${TEST_ITEMS.map(item => `- [ ] ${item}`).join("\n")}\n`);
         const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
         downloadBlob("daniel-aura-complet.zip", blob);
         notify("Archive complète générée : frontend, backend, configuration et documentation.", "success", 5000);
@@ -5306,6 +5363,15 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
         const nav = event.target.closest("[data-nav]");
         if (nav) switchView(nav.dataset.nav);
 
+        if (event.target.closest("[data-quick-voice]")) {
+          const voiceButton = $("#voiceButton");
+          if (voiceButton && !voiceButton.disabled) voiceButton.click();
+        }
+        if (event.target.closest("[data-quick-settings]")) {
+          const settingsButton = $("#openSettingsButton");
+          if (settingsButton) settingsButton.click();
+        }
+
         const command = event.target.closest("[data-command]");
         if (command) handleUserInput(command.dataset.command);
 
@@ -5430,7 +5496,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
         settings.audio = true;
         settings.muted = false;
         updateMuteUI();
-        speakText(`Bonjour${settings.name ? ` ${settings.name}` : ""}, je suis Daniel. Voici ma voix Aura IA.`);
+        speakText(`Bonjour${settings.name ? ` ${settings.name}` : ""}, je suis Daniel. Voici ma voix Aura 2.0.`);
       });
       $("#settingAudio").addEventListener("change", event => {
         settings.audio = event.target.checked;
