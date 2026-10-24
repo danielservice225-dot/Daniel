@@ -4659,27 +4659,31 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
         notify("Patientez pendant la préparation de la réponse.", "warning");
         return false;
       }
-      if (!SpeechRecognition) {
-        // Android WebView ne fournit pas toujours Web Speech API : utiliser le moteur natif de l’appareil.
-        if (window.DanielNativeSpeech && !wakeMode) {
-          stopSpeech();
-          haltRecognition(false);
-          activeWakeMode = false;
-          nativeRecognitionActive = true;
-          setPermissionUI("mic", "active");
-          setState("listening", "Parlez naturellement, Daniel vous écoute");
-          $("#liveTranscript").textContent = "Je vous écoute…";
-          $("#composerMicButton").classList.add("active");
-          try {
-            window.DanielNativeSpeech.startListening(settings.language);
-            return true;
-          } catch {
-            nativeRecognitionActive = false;
-            setState("error", "La reconnaissance vocale ne peut pas démarrer");
-            notify("Impossible de démarrer la reconnaissance vocale Android. Vérifiez l’autorisation du microphone.", "error", 6000);
-            return false;
-          }
+      // Dans l’APK Daniel Aura, privilégier le moteur vocal natif Android.
+      // Cela évite le message « non pris en charge par ce navigateur » dans WebView.
+      if (window.DanielNativeSpeech && window.DanielAndroid && !wakeMode) {
+        stopSpeech();
+        haltRecognition(false);
+        clearTimeout(wakeRestartTimer);
+        activeWakeMode = false;
+        nativeRecognitionActive = true;
+        setPermissionUI("mic", "active");
+        setState("listening", "Parlez naturellement, Daniel vous écoute");
+        $("#liveTranscript").textContent = "Je vous écoute…";
+        $("#composerMicButton").classList.add("active");
+        try {
+          window.DanielNativeSpeech.startListening(settings.language);
+          return true;
+        } catch (error) {
+          nativeRecognitionActive = false;
+          $("#composerMicButton").classList.remove("active");
+          setState("error", "La reconnaissance vocale ne peut pas démarrer");
+          notify("Impossible de démarrer la reconnaissance vocale Android. Vérifiez le service vocal et l’autorisation du microphone.", "error", 6000);
+          return false;
         }
+      }
+      if (!SpeechRecognition) {
+        // En dehors de l’APK, Web Speech API est nécessaire pour la dictée du navigateur.
         notify(wakeMode
           ? "Le mot déclencheur continu n’est pas disponible dans cette version Android. Utilisez le bouton Parler."
           : "La dictée vocale n’est pas prise en charge par ce navigateur. Utilisez le clavier ou Chrome.",
