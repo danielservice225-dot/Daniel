@@ -30,7 +30,9 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     private lateinit var transcript: TextView
     private lateinit var prompt: EditText
     private lateinit var status: TextView
+    private lateinit var chatScroll: ScrollView
     private var tts: TextToSpeech? = null
+    private var ttsReady = false
     private val history = JSONArray()
     private val speechRequest = 812
 
@@ -57,16 +59,17 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             setTextColor(0xFF0F172A.toInt())
             setPadding(4, 16, 4, 16)
         }
-        val scroll = ScrollView(this).apply { addView(transcript) }
+        chatScroll = ScrollView(this).apply { isFillViewport = true; addView(transcript) }
         root.addView(title)
         root.addView(status)
-        root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(chatScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         prompt = EditText(this).apply { hint = "Pose ta question à Daniel…"; minLines = 1; maxLines = 4 }
         root.addView(prompt)
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         row.addView(makeButton("Envoyer") { sendMessage() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(makeButton("Parler") { startVoiceInput() }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         root.addView(row)
+        root.addView(makeButton("Configurer la voix de Daniel") { configureVoice() })
         root.addView(makeButton("Activer le bouton flottant") { enableOverlay() })
         root.addView(makeButton("Autoriser les actions système (facultatif)") {
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
@@ -78,6 +81,18 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     private fun makeButton(label: String, action: () -> Unit) = Button(this).apply { text = label; setOnClickListener { action() } }
+
+    private fun configureVoice() {
+        try {
+            startActivity(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA))
+        } catch (_: Exception) {
+            try {
+                startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+            } catch (_: Exception) {
+                status.text = "Ouvre les paramètres Android > Synthèse vocale pour installer une voix française."
+            }
+        }
+    }
 
     private fun enableOverlay() {
         if (!Settings.canDrawOverlays(this)) {
@@ -184,7 +199,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                 history.put(JSONObject().put("role", "assistant").put("content", reply))
                 runOnUiThread {
                     appendLine("Daniel : $reply")
-                    tts?.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "daniel_reply")
+                    if (ttsReady) tts?.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "daniel_reply")
+                    else status.text = "Réponse affichée. Pour l’entendre, configure une voix dans « Configurer la voix de Daniel »."
                 }
             } catch (_: Exception) {
                 runOnUiThread { appendLine("Daniel : impossible de joindre le service. Vérifie ta connexion et Render.") }
@@ -193,7 +209,16 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
     }
 
     override fun onInit(statusCode: Int) {
-        if (statusCode == TextToSpeech.SUCCESS) tts?.language = Locale.FRENCH
+        if (statusCode == TextToSpeech.SUCCESS) {
+            val languageStatus = tts?.setLanguage(Locale.FRENCH)
+            ttsReady = languageStatus != null &&
+                languageStatus != TextToSpeech.LANG_MISSING_DATA &&
+                languageStatus != TextToSpeech.LANG_NOT_SUPPORTED
+            if (!ttsReady) status.text = "Installe une voix française avec « Configurer la voix de Daniel »."
+        } else {
+            ttsReady = false
+            status.text = "Synthèse vocale indisponible. Vérifie le moteur vocal dans les paramètres Android."
+        }
     }
 
     override fun onDestroy() {
