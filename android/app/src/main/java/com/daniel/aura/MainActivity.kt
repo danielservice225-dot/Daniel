@@ -83,6 +83,12 @@ class MainActivity : Activity() {
                             var value = String(url || "");
                             var match = apps.find(function(item) { return item[0].test(value); });
                             try {
+                              var userMessages = document.querySelectorAll("#messages .message.user");
+                              var latestCommand = userMessages.length ? userMessages[userMessages.length - 1].innerText : "";
+                              if (/google\\.com/i.test(value) && /assistant google|google assistant|assistant de google|parle a google/i.test(latestCommand) && window.DanielAndroid) {
+                                window.DanielAndroid.openGoogleAssistant();
+                                return null;
+                              }
                               if (match && window.DanielAndroid && window.DanielAndroid.isAppInstalled(match[1])) {
                                 window.DanielAndroid.openApp(match[1]);
                                 return null;
