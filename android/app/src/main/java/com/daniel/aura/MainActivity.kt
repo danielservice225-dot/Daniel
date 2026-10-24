@@ -16,7 +16,7 @@ import android.widget.Toast
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
-    private val website = "https://danielservice225-dot.github.io/Daniel/"
+    private val website = "https://daniel-aura-api.onrender.com/"
     private val mediaPermissionRequest = 420
     private var pendingWebPermission: PermissionRequest? = null
 
