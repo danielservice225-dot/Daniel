@@ -49,12 +49,8 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
             setPadding(20, 28, 20, 16)
             setBackgroundColor(0xFFF8FAFC.toInt())
         }
-        val title = TextView(this).apply {
-            text = "Daniel — Aura IA"
-            textSize = 25f
-            setTextColor(0xFF1D4ED8.toInt())
-        }
-        status = TextView(this).apply { text = "Connecté au service Daniel"; textSize = 13f }
+        val title = TextView(this).apply { text = "Daniel — Aura IA"; textSize = 25f; setTextColor(0xFF1D4ED8.toInt()) }
+        status = TextView(this).apply { text = "Assistant prêt"; textSize = 13f }
         transcript = TextView(this).apply {
             text = "Bonjour, je suis Daniel. Pose ta question par écrit ou par la voix."
             textSize = 16f
@@ -81,10 +77,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         setContentView(root)
     }
 
-    private fun makeButton(label: String, action: () -> Unit) = Button(this).apply {
-        text = label
-        setOnClickListener { action() }
-    }
+    private fun makeButton(label: String, action: () -> Unit) = Button(this).apply { text = label; setOnClickListener { action() } }
 
     private fun enableOverlay() {
         if (!Settings.canDrawOverlays(this)) {
@@ -104,10 +97,7 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         }
         if (requestCode == speechRequest && resultCode == RESULT_OK) {
             val spoken = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            if (!spoken.isNullOrBlank()) {
-                prompt.setText(spoken)
-                sendMessage()
-            }
+            if (!spoken.isNullOrBlank()) { prompt.setText(spoken); sendMessage() }
         }
     }
 
@@ -121,11 +111,54 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
         catch (_: Exception) { status.text = "La reconnaissance vocale Android n'est pas disponible sur cet appareil." }
     }
 
+    private fun handlePhoneCommand(message: String): Boolean {
+        val q = message.lowercase(Locale.FRENCH)
+        val systemCommand = when {
+            q.contains("retour") || q == "reviens en arrière" -> "back"
+            q.contains("accueil") || q == "écran d'accueil" -> "home"
+            q.contains("notifications") -> "notifications"
+            else -> null
+        }
+        if (systemCommand != null) {
+            sendBroadcast(Intent("com.daniel.aura.SYSTEM_COMMAND").setPackage(packageName).putExtra("command", systemCommand))
+            appendLine("Daniel : commande envoyée à Android. Active le service d'accessibilité Daniel pour l'autoriser.")
+            return true
+        }
+        val app = when {
+            q.contains("ouvre whatsapp") || q.contains("ouvre whats app") -> "com.whatsapp"
+            q.contains("ouvre youtube") -> "com.google.android.youtube"
+            q.contains("ouvre chrome") || q.contains("ouvre le navigateur") -> "com.android.chrome"
+            q.contains("ouvre gmail") -> "com.google.android.gm"
+            q.contains("ouvre les paramètres") || q.contains("ouvre paramètres") -> "android.settings"
+            else -> null
+        }
+        if (app != null) {
+            try {
+                val launch = if (app == "android.settings") Intent(Settings.ACTION_SETTINGS)
+                    else packageManager.getLaunchIntentForPackage(app)
+                if (launch != null) {
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    startActivity(launch)
+                    appendLine("Daniel : ouverture de l'application demandée.")
+                } else appendLine("Daniel : cette application ne semble pas installée.")
+            } catch (_: Exception) { appendLine("Daniel : je ne peux pas ouvrir cette application sur cet appareil.") }
+            return true
+        }
+        return false
+    }
+
+    private fun appendLine(text: String) {
+        transcript.append("\n\n$text")
+        status.text = "Prêt"
+    }
+
     private fun sendMessage() {
         val message = prompt.text.toString().trim()
         if (message.isEmpty()) return
-        transcript.append("\n\nVous : $message\n\nDaniel : …")
         prompt.setText("")
+        appendLine("Vous : $message")
+        if (handlePhoneCommand(message)) return
+        appendLine("Daniel : …")
         status.text = "Daniel réfléchit…"
         executor.execute {
             try {
@@ -136,25 +169,25 @@ class MainActivity : Activity(), TextToSpeech.OnInitListener {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 }
-                val payload = JSONObject().put("message", message).put("history", history).toString()
+                val recentHistory = JSONArray()
+                val start = (history.length() - 10).coerceAtLeast(0)
+                for (i in start until history.length()) recentHistory.put(history.getJSONObject(i))
+                val payload = JSONObject().put("message", message).put("history", recentHistory).toString()
                 conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
                 val code = conn.responseCode
                 val stream = if (code in 200..299) conn.inputStream else conn.errorStream
                 val body = stream.bufferedReader().use { it.readText() }
+                conn.disconnect()
                 if (code !in 200..299) throw IllegalStateException("Serveur indisponible ($code)")
                 val reply = JSONObject(body).optString("reply", "Je n'ai pas reçu de réponse.")
                 history.put(JSONObject().put("role", "user").put("content", message))
                 history.put(JSONObject().put("role", "assistant").put("content", reply))
                 runOnUiThread {
-                    transcript.append(reply)
-                    status.text = "Prêt"
+                    appendLine("Daniel : $reply")
                     tts?.speak(reply, TextToSpeech.QUEUE_FLUSH, null, "daniel_reply")
                 }
-            } catch (e: Exception) {
-                runOnUiThread {
-                    transcript.append("Impossible de joindre Daniel. Vérifie la connexion et le service Render.")
-                    status.text = "Connexion indisponible"
-                }
+            } catch (_: Exception) {
+                runOnUiThread { appendLine("Daniel : impossible de joindre le service. Vérifie ta connexion et Render.") }
             }
         }
     }
