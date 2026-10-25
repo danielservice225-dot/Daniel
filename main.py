@@ -121,7 +121,7 @@ def clean_reply(text: str) -> str:
     """Remove stray Markdown decoration while preserving code blocks and inline code."""
     text = text.replace("\r\n", "\n").replace("\r", "\n").strip()
     tick = chr(96)
-    parts = re.split(r"(" + re.escape(tick * 3) + r"[\s\S]*?" + re.escape(tick * 3) + r"|" + re.escape(tick) + r"[^\n" + re.escape(tick) + r]+" + re.escape(tick) + r")", text)
+    parts = re.split(r"(" + re.escape(tick * 3) + r"[\s\S]*?" + re.escape(tick * 3) + r"|" + re.escape(tick) + r"[^\n" + re.escape(tick) + r"]+" + re.escape(tick) + r")", text)
     cleaned = []
     for index, part in enumerate(parts):
         if index % 2:
