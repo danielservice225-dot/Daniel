@@ -192,6 +192,30 @@ async def chat(payload: ChatRequest):
     )
 
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def pwa_manifest():
+    manifest_path = BASE_DIR / "manifest.webmanifest"
+    if manifest_path.exists():
+        return FileResponse(manifest_path, media_type="application/manifest+json", headers={"Cache-Control": "no-cache"})
+    raise HTTPException(status_code=404, detail="Manifest introuvable.")
+
+
+@app.get("/sw.js", include_in_schema=False)
+async def pwa_service_worker():
+    worker_path = BASE_DIR / "sw.js"
+    if worker_path.exists():
+        return FileResponse(worker_path, media_type="application/javascript", headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+    raise HTTPException(status_code=404, detail="Service worker introuvable.")
+
+
+@app.get("/icon.svg", include_in_schema=False)
+async def pwa_icon():
+    icon_path = BASE_DIR / "icon.svg"
+    if icon_path.exists():
+        return FileResponse(icon_path, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+    raise HTTPException(status_code=404, detail="Icône introuvable.")
+
+
 @app.get("/", include_in_schema=False)
 async def frontend():
     index_path = BASE_DIR / "index.html"
