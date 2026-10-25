@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#07080d">
   <meta name="description" content="Daniel, assistant vocal Aura 2.0 : commandes vocales, ouverture d’applications, conversation et backend FastAPI téléchargeable.">
   <meta name="referrer" content="no-referrer">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Daniel Aura">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icon.svg">
   <title>Daniel — Aura 2.0</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -530,6 +536,8 @@
       border-radius: 12px;
       transition: color 180ms ease, background 180ms ease, border-color 180ms ease, transform 180ms ease;
     }
+
+    #installAppButton[hidden] { display: none !important; }
 
     .icon-button:hover {
       color: var(--text);
@@ -2867,6 +2875,9 @@
           </button>
           <button class="icon-button" id="topDocsButton" aria-label="Documentation et livrables" title="Documentation">
             <i data-lucide="circle-help"></i>
+          </button>
+          <button class="icon-button" id="installAppButton" aria-label="Installer Daniel sur ce téléphone" title="Installer l’application">
+            <i data-lucide="download"></i>
           </button>
           <button class="icon-button" id="topSettingsButton" aria-label="Ouvrir les réglages" title="Réglages">
             <i data-lucide="sliders-horizontal"></i>
@@ -5452,6 +5463,54 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
       requestAnimationFrame(draw);
     }
 
+    let deferredInstallPrompt = null;
+
+    function setupProgressiveWebApp() {
+      const installButton = $("#installAppButton");
+      const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+
+      if (isStandalone) {
+        installButton.hidden = true;
+      }
+
+      window.addEventListener("beforeinstallprompt", event => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        installButton.hidden = isStandalone;
+        installButton.title = "Installer Daniel Aura sur ce téléphone";
+        installButton.setAttribute("aria-label", "Installer Daniel Aura sur ce téléphone");
+      });
+
+      window.addEventListener("appinstalled", () => {
+        deferredInstallPrompt = null;
+        installButton.hidden = true;
+        notify("Daniel Aura est installé sur votre téléphone.", "success", 3500);
+      });
+
+      installButton.addEventListener("click", async () => {
+        if (deferredInstallPrompt) {
+          deferredInstallPrompt.prompt();
+          await deferredInstallPrompt.userChoice;
+          deferredInstallPrompt = null;
+          return;
+        }
+
+        const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+        if (isIOS) {
+          notify("Pour installer Daniel : ouvrez Partager dans Safari, puis choisissez « Sur l’écran d’accueil ».", "info", 7000);
+        } else {
+          notify("Dans Chrome, ouvrez le menu ⋮ puis choisissez « Installer l’application » ou « Ajouter à l’écran d’accueil ».", "info", 7000);
+        }
+      });
+
+      if ("serviceWorker" in navigator && window.isSecureContext) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js", { scope: "/" })
+            .catch(() => notify("Le mode installable n’a pas pu être activé. Rechargez la page et réessayez.", "warning", 5000));
+        }, { once: true });
+      }
+    }
+
     function bindEvents() {
       document.addEventListener("click", event => {
         const nav = event.target.closest("[data-nav]");
@@ -5722,6 +5781,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
       setState("idle");
       queryBrowserPermissions();
       bindEvents();
+      setupProgressiveWebApp();
       initAura();
       syncSettingsForm();
       refreshIcons();
