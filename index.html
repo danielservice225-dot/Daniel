@@ -4661,12 +4661,13 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
       }
       // Dans l’APK Daniel Aura, privilégier le moteur vocal natif Android.
       // Cela évite le message « non pris en charge par ce navigateur » dans WebView.
-      if (window.DanielNativeSpeech && window.DanielAndroid && !wakeMode) {
+      if (window.DanielNativeSpeech && window.DanielAndroid) {
         stopSpeech();
         haltRecognition(false);
         clearTimeout(wakeRestartTimer);
         activeWakeMode = false;
         nativeRecognitionActive = true;
+        activeWakeMode = wakeMode;
         setPermissionUI("mic", "active");
         setState("listening", "Parlez naturellement, Daniel vous écoute");
         $("#liveTranscript").textContent = "Je vous écoute…";
@@ -4806,7 +4807,7 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
 
     function resumeWakeIfNeeded() {
       clearTimeout(wakeRestartTimer);
-      if (!wakeRequested || recognition || processing || assistantState === "speaking" || assistantState === "thinking" || document.hidden) return;
+      if (!wakeRequested || recognition || nativeRecognitionActive || processing || assistantState === "speaking" || assistantState === "thinking" || document.hidden) return;
       wakeRestartTimer = setTimeout(() => {
         if (wakeRequested && !recognition && !processing && !document.hidden) startListening(true);
       }, 700);
@@ -4859,12 +4860,35 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
 
     window.onDanielNativeSpeechResult = (text, isFinal) => {
       if (!nativeRecognitionActive || typeof text !== "string" || !text.trim()) return;
-      $("#liveTranscript").textContent = text.trim();
+      const phrase = text.trim();
+      $("#liveTranscript").textContent = phrase;
       if (!isFinal) return;
+
       nativeRecognitionActive = false;
       $("#composerMicButton").classList.remove("active");
       $("#liveTranscript").textContent = "";
-      handleUserInput(text.trim());
+
+      if (activeWakeMode) {
+        const command = stripWakeWord(phrase);
+        if (command === null) {
+          setState("idle");
+          resumeWakeIfNeeded();
+          return;
+        }
+        if (!command) {
+          setState("idle");
+          clearTimeout(wakeRestartTimer);
+          wakeRestartTimer = setTimeout(() => {
+            if (wakeRequested && !processing && !document.hidden) startListening(false);
+          }, 250);
+          return;
+        }
+        activeWakeMode = false;
+        handleUserInput(command);
+        return;
+      }
+
+      handleUserInput(phrase);
     };
 
     window.onDanielNativeSpeechError = code => {
@@ -4873,7 +4897,8 @@ ${TEST_ITEMS.map((item, index) => `${index + 1}. [ ] ${item}`).join("\n")}
       $("#composerMicButton").classList.remove("active");
       if (code === "no-speech") {
         setState("idle");
-        notify("Je n’ai pas entendu de parole. Appuyez sur le micro et réessayez.", "warning", 5000);
+        notify("Je n’ai pas entendu de parole. Réessayez.", "warning", 5000);
+        if (wakeRequested) resumeWakeIfNeeded();
       } else if (code === "not-allowed") {
         setPermissionUI("mic", "denied");
         setState("error", "Autorisez le microphone dans les paramètres Android");
