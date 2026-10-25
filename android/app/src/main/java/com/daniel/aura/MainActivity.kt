@@ -12,9 +12,7 @@ import android.widget.TextView
 import android.os.Build
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.webkit.JavascriptInterface
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
@@ -32,7 +30,8 @@ class MainActivity : Activity() {
     private val nativeSpeechPermissionRequest = 421
     private var pendingWebPermission: PermissionRequest? = null
     private var pendingNativeLanguage = "fr-FR"
-    private var nativeSpeechRecognizer: SpeechRecognizer? = null
+    private var nativeSpeechPending = false
+    private val nativeSpeechResultRequest = 422
     private var shortcutButton: TextView? = null
     private val shortcutPrefs by lazy { getSharedPreferences("daniel_aura_app", MODE_PRIVATE) }
     private var waitingForOverlayPermission = false
@@ -300,67 +299,27 @@ class MainActivity : Activity() {
         }
     }
 
+    // Uses Android's system speech-input screen and the speech service configured on the phone.
+    // This avoids relying on WebView's unsupported Web Speech API or a custom in-app voice engine.
     private fun startNativeRecognition() {
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), nativeSpeechPermissionRequest)
             return
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            notifyWebSpeechError("unavailable")
-            return
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, pendingNativeLanguage)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, pendingNativeLanguage)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Parlez à Daniel")
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
         }
-
-        stopNativeRecognition()
         try {
-            val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
-            nativeSpeechRecognizer = recognizer
-            recognizer.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    webView.evaluateJavascript("window.onDanielNativeSpeechReady && window.onDanielNativeSpeechReady();", null)
-                }
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val text = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!text.isNullOrBlank()) {
-                        webView.evaluateJavascript("window.onDanielNativeSpeechResult && window.onDanielNativeSpeechResult(${JSONObject.quote(text)}, false);", null)
-                    }
-                }
-                override fun onResults(results: Bundle?) {
-                    val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!text.isNullOrBlank()) {
-                        webView.evaluateJavascript("window.onDanielNativeSpeechResult && window.onDanielNativeSpeechResult(${JSONObject.quote(text)}, true);", null)
-                    } else {
-                        notifyWebSpeechError("no-speech")
-                    }
-                    stopNativeRecognition()
-                }
-                override fun onError(error: Int) {
-                    val code = when (error) {
-                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "no-speech"
-                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "not-allowed"
-                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "network"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "busy"
-                        else -> "recognition"
-                    }
-                    notifyWebSpeechError(code)
-                    stopNativeRecognition()
-                }
-            })
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, pendingNativeLanguage)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, pendingNativeLanguage)
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                putExtra(RecognizerIntent.EXTRA_PROMPT, "Parlez à Daniel")
-            }
-            recognizer.startListening(intent)
+            nativeSpeechPending = true
+            webView.evaluateJavascript("window.onDanielNativeSpeechReady && window.onDanielNativeSpeechReady();", null)
+            startActivityForResult(intent, nativeSpeechResultRequest)
         } catch (_: Exception) {
-            stopNativeRecognition()
+            nativeSpeechPending = false
             notifyWebSpeechError("unavailable")
         }
     }
@@ -372,11 +331,30 @@ class MainActivity : Activity() {
     }
 
     private fun stopNativeRecognition() {
-        val recognizer = nativeSpeechRecognizer
-        nativeSpeechRecognizer = null
-        if (recognizer != null) {
-            try { recognizer.cancel() } catch (_: Exception) {}
-            try { recognizer.destroy() } catch (_: Exception) {}
+        // The system owns the speech-input screen; ignore its result if the user cancels Daniel.
+        nativeSpeechPending = false
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != nativeSpeechResultRequest) return
+        val wasPending = nativeSpeechPending
+        nativeSpeechPending = false
+        if (!wasPending) return
+
+        if (resultCode == RESULT_OK) {
+            val phrase = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            if (!phrase.isNullOrBlank()) {
+                webView.evaluateJavascript(
+                    "window.onDanielNativeSpeechResult && window.onDanielNativeSpeechResult(${JSONObject.quote(phrase)}, true);",
+                    null
+                )
+            } else {
+                notifyWebSpeechError("no-speech")
+            }
+        } else {
+            notifyWebSpeechError("no-speech")
         }
     }
 
