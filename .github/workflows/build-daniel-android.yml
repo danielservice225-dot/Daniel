@@ -1,5 +1,6 @@
 name: Build Daniel Aura Android APK
 
+# Build an APK artifact that loads the same live Render backend as the website.
 on:
   workflow_dispatch:
   push:
