@@ -15,6 +15,8 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514").strip()
 PRIMARY_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b").strip()
 FALLBACK_MODELS = [
     model.strip()
@@ -102,8 +104,10 @@ async def health():
     return {
         "status": "ok",
         "service": "daniel-aura",
-        "model_configured": bool(GROQ_API_KEY),
-        "primary_model": PRIMARY_MODEL,
+        "model_configured": bool(GROQ_API_KEY or ANTHROPIC_API_KEY),
+        "groq_configured": bool(GROQ_API_KEY),
+        "claude_configured": bool(ANTHROPIC_API_KEY),
+        "primary_model": PRIMARY_MODEL if GROQ_API_KEY else CLAUDE_MODEL,
     }
 
 
@@ -164,12 +168,42 @@ async def ask_model(client: httpx.AsyncClient, model: str, messages: list[dict])
     return clean_reply(reply)
 
 
+async def ask_claude(client: httpx.AsyncClient, messages: list[dict]) -> str:
+    # Anthropic Messages API uses a separate system field and only user/assistant message roles.
+    system_message = next((item["content"] for item in messages if item["role"] == "system"), SYSTEM_PROMPT)
+    conversation = [item for item in messages if item["role"] in ("user", "assistant")]
+    response = await client.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json={
+            "model": CLAUDE_MODEL,
+            "system": system_message,
+            "messages": conversation,
+            "temperature": 0.5,
+            "max_tokens": 1200,
+        },
+    )
+    response.raise_for_status()
+    data = response.json()
+    reply = "".join(
+        block.get("text", "") for block in data.get("content", [])
+        if block.get("type") == "text"
+    ).strip()
+    if not reply:
+        raise ValueError("Réponse vide de Claude.")
+    return clean_reply(reply)
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(payload: ChatRequest):
-    if not GROQ_API_KEY:
+    if not GROQ_API_KEY and not ANTHROPIC_API_KEY:
         raise HTTPException(
             status_code=503,
-            detail="Le moteur IA n'est pas configuré. Ajoutez GROQ_API_KEY dans les variables d'environnement du serveur.",
+            detail="Le moteur IA n'est pas configuré. Ajoutez GROQ_API_KEY ou ANTHROPIC_API_KEY dans les variables d'environnement du serveur.",
         )
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -185,10 +219,19 @@ async def chat(payload: ChatRequest):
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
             errors.append(f"{model}: {type(exc).__name__}")
 
+    # If Groq is unavailable (or not configured), try Claude as a server-side fallback.
+    if ANTHROPIC_API_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as client:
+                reply = await ask_claude(client, messages)
+            return ChatResponse(reply=reply[:8000], conversation_id=str(uuid.uuid4()), model=CLAUDE_MODEL)
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+            pass
+
     # Do not expose provider responses, keys, or internal request details to visitors.
     raise HTTPException(
         status_code=502,
-        detail="Le moteur IA est temporairement indisponible. Réessayez dans un instant.",
+        detail="Les moteurs IA sont temporairement indisponibles. Réessayez dans un instant.",
     )
 
 
