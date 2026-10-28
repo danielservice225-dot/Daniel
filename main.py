@@ -211,7 +211,10 @@ async def chat(payload: ChatRequest):
     messages.append({"role": "user", "content": payload.message})
 
     errors = []
-    for model in [PRIMARY_MODEL, *FALLBACK_MODELS]:
+    # N’appeler Groq que si sa clé est configurée. Si elle est absente,
+    # utiliser Claude immédiatement sans attendre des échecs réseau inutiles.
+    groq_models = [PRIMARY_MODEL, *FALLBACK_MODELS] if GROQ_API_KEY else []
+    for model in groq_models:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(35.0, connect=10.0)) as client:
                 reply = await ask_model(client, model, messages)
