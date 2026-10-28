@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -12,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 load_dotenv()
+logger = logging.getLogger("daniel_aura")
 BASE_DIR = Path(__file__).resolve().parent
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
@@ -220,21 +222,29 @@ async def chat(payload: ChatRequest):
                 reply = await ask_model(client, model, messages)
             return ChatResponse(reply=reply[:8000], conversation_id=str(uuid.uuid4()), model=model)
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            logger.warning("Échec Groq modèle=%s type=%s status=%s", model, type(exc).__name__, status)
             errors.append(f"{model}: {type(exc).__name__}")
 
-    # If Groq is unavailable (or not configured), try Claude as a server-side fallback.
+    # Si Groq est indisponible ou sans clé, Claude est essayé directement.
     if ANTHROPIC_API_KEY:
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(45.0, connect=10.0)) as client:
                 reply = await ask_claude(client, messages)
             return ChatResponse(reply=reply[:8000], conversation_id=str(uuid.uuid4()), model=CLAUDE_MODEL)
-        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
-            pass
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError) as exc:
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            logger.error("Échec Claude modèle=%s type=%s status=%s", CLAUDE_MODEL, type(exc).__name__, status)
+            errors.append(f"Claude: {type(exc).__name__}")
 
-    # Do not expose provider responses, keys, or internal request details to visitors.
+    if not ANTHROPIC_API_KEY:
+        logger.error("Aucune clé ANTHROPIC_API_KEY configurée; Groq disponible=%s", bool(GROQ_API_KEY))
+    logger.error("Tous les moteurs IA ont échoué. Détails internes: %s", ", ".join(errors) or "aucun moteur configuré")
+
+    # Ne jamais exposer les clés ou les réponses brutes des fournisseurs aux visiteurs.
     raise HTTPException(
         status_code=502,
-        detail="Les moteurs IA sont temporairement indisponibles. Réessayez dans un instant.",
+        detail="Les moteurs IA sont indisponibles. Vérifiez les clés API Anthropic/Groq dans les variables Render.",
     )
 
 
